@@ -291,14 +291,14 @@ void usercontrol()
     // User control code here, inside the loop
     while (1)
     {
-        int leftSpeed = Controller.Axis3.position() + Controller.Axis1.position();
-        int rightSpeed = Controller.Axis3.position() - Controller.Axis1.position();
+        double leftSpeed = Controller.Axis3.position() + Controller.Axis1.position();
+        double rightSpeed = Controller.Axis3.position() - Controller.Axis1.position();
 
-        if (abs(leftSpeed) < 5)
+        if (fabs(leftSpeed) < 5)
         {
             leftSpeed = 0;
         }
-        if (abs(rightSpeed) < 5)
+        if (fabs(rightSpeed) < 5)
         {
             rightSpeed = 0;
         }
@@ -318,8 +318,8 @@ void usercontrol()
         }
 
         Controller.ButtonX.pressed(togglePower);
-        Controller.R1.pressed(armOut);
-        Controller.R2.pressed(armIn);
+        Controller.ButtonR1.pressed(armOut);
+        Controller.ButtonR2.pressed(armIn);
 
         wait(20, msec); // Sleep the task for a short amount of time
                         // to prevent wasted resources.
