@@ -21,7 +21,7 @@ Drive chassis = Drive();
 //     // right motors
 //     rightMotors,
 //     // inertial port
-//     PORT7,
+//     PORT9,
 //     // vertical odo port
 //     PORT11,
 //     // horizontal odo port
@@ -59,6 +59,7 @@ void pre_auton(void)
         wait(50, msec);
     }
     Brain.Screen.clearScreen();
+    armSensor.setPosition(0, vex::rotationUnits::rev);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -97,7 +98,22 @@ enum MotorStatus
     stop
 };
 
+enum ArmPos
+{
+    off,
+    idle,
+    neutral_hover,
+    neutral,
+    color_hover,
+    color
+};
+
+double armPoses[] = {
+    0, 0, 0, 0, 0, 0,
+};
+
 MotorStatus intakeStatus = MotorStatus::stop;
+ArmPos armPos = ArmPos::off;
 bool clampStatus = false;
 bool powerStatus = false;
 bool powerProcessing = false;
@@ -178,6 +194,98 @@ void togglePower()
     powerProcessing = false;
 }
 
+void moveArm(double target)
+{
+    double init = armSensor.position(vex::rotationUnits::rev);
+    leftMotors.setStopping(hold);
+    rightMotors.setStopping(hold);
+    while (fabs(armSensor.position(vex::rotationUnits::rev) - target) > 0.01)
+    {
+        if (init < target)
+        {
+            leftArmMotor.spin(vex::forward);
+            rightArmMotor.spin(vex::forward);
+        }
+        else
+        {
+            leftArmMotor.spin(vex::reverse);
+            rightArmMotor.spin(vex::reverse);
+        }
+    }
+    leftArmMotor.stop();
+    rightArmMotor.stop();
+}
+
+void armOut()
+{
+    switch (armPos)
+    {
+        case ArmPos::off: {
+            moveArm(armPoses[1]);
+            armPos = ArmPos::idle;
+            break;
+        }
+        case ArmPos::idle: {
+            moveArm(armPoses[2]);
+            armPos = ArmPos::neutral_hover;
+            break;
+        }
+        case ArmPos::neutral_hover: {
+            moveArm(armPoses[3]);
+            armPos = ArmPos::neutral;
+            break;
+        }
+        case ArmPos::neutral: {
+            moveArm(armPoses[4]);
+            armPos = ArmPos::color_hover;
+            break;
+        }
+        case ArmPos::color_hover: {
+            moveArm(armPoses[5]);
+            armPos = ArmPos::color;
+            break;
+        }
+        case ArmPos::color: {
+            break;
+        }
+    }
+}
+
+void armIn()
+{
+    switch (armPos)
+    {
+        case ArmPos::off: {
+            break;
+        }
+        case ArmPos::idle: {
+            moveArm(armPoses[0]);
+            armPos = ArmPos::off;
+            break;
+        }
+        case ArmPos::neutral_hover: {
+            moveArm(armPoses[1]);
+            armPos = ArmPos::idle;
+            break;
+        }
+        case ArmPos::neutral: {
+            moveArm(armPoses[2]);
+            armPos = ArmPos::neutral_hover;
+            break;
+        }
+        case ArmPos::color_hover: {
+            moveArm(armPoses[3]);
+            armPos = ArmPos::neutral;
+            break;
+        }
+        case ArmPos::color: {
+            moveArm(armPoses[4]);
+            armPos = ArmPos::color_hover;
+            break;
+        }
+    }
+}
+
 void usercontrol()
 {
     // User control code here, inside the loop
@@ -210,6 +318,8 @@ void usercontrol()
         }
 
         Controller.ButtonX.pressed(togglePower);
+        Controller.R1.pressed(armOut);
+        Controller.R2.pressed(armIn);
 
         wait(20, msec); // Sleep the task for a short amount of time
                         // to prevent wasted resources.

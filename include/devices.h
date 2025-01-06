@@ -5,11 +5,14 @@ extern vex::controller Controller;
 // motors and piston
 extern vex::motor intakeMotor;
 extern vex::motor conveyorMotor;
+extern vex::motor leftArmMotor;
+extern vex::motor rightArmMotor;
 extern vex::digital_out clampCylinder;
 extern vex::digital_out powerCylinder;
 // sensors
 extern vex::rotation verticalOdo;
 extern vex::rotation horizontalOdo;
+extern vex::rotation armSensor;
 extern vex::inertial Inertial;
 // drivetrain
 extern vex::motor leftBackMotor;
