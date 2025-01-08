@@ -18,8 +18,8 @@ vex::rotation armSensor = vex::rotation(PORT10);
 vex::inertial Inertial = vex::inertial(PORT9);
 // drivetrain
 vex::motor leftBackMotor = vex::motor(PORT1, true);
-vex::motor leftFrontMotor = vex::motor(PORT2, true);
+vex::motor leftFrontMotor = vex::motor(PORT2, false);
 vex::motor rightBackMotor = vex::motor(PORT3, true);
-vex::motor rightFrontMotor = vex::motor(PORT4, true);
+vex::motor rightFrontMotor = vex::motor(PORT4, false);
 vex::motor_group leftMotors = vex::motor_group(leftBackMotor, leftFrontMotor);
 vex::motor_group rightMotors = vex::motor_group(rightBackMotor, rightFrontMotor);
