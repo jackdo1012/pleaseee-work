@@ -12,9 +12,9 @@ void Odom::setInitPos(double xPos, double yPos, double orientation, double verti
 // inches
 void Odom::update(double verticalOdoPos, double horizontalOdoPos, double orientation)
 {
-    float verticalTrackingDistance = 1.084161;
-    float horizontalTrackingDistance = 1.3358615;
-    float wheelCircumference = 8.66142;
+    double verticalTrackingDistance = 1.084161;
+    double horizontalTrackingDistance = 1.3358615;
+    double wheelCircumference = 8.66142;
 
     double deltaVertical = verticalOdoPos - this->verticalOdoPos;
     double deltaHorizontal = horizontalOdoPos - this->horizontalOdoPos;
@@ -39,6 +39,6 @@ void Odom::update(double verticalOdoPos, double horizontalOdoPos, double orienta
         relDeltaStr = 2 * (deltaHorizontal * wheelCircumference / deltaOrientation - horizontalTrackingDistance) *
                       sin(deltaOrientation / 2);
     }
-    this->xPos += relDeltaFwd * cos(deltaOrientation) - relDeltaStr * sin(deltaOrientation);
-    this->yPos += relDeltaStr * cos(deltaOrientation) + relDeltaFwd * sin(deltaOrientation);
+    this->yPos += relDeltaFwd * cos(deltaOrientation) - relDeltaStr * sin(deltaOrientation);
+    this->xPos -= relDeltaStr * cos(deltaOrientation) + relDeltaFwd * sin(deltaOrientation);
 }

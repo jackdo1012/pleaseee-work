@@ -10,19 +10,19 @@ class Drive
     vex::motor rightFrontMotor = rightFrontMotor;
     vex::motor_group leftMotors = leftMotors;
     vex::motor_group rightMotors = rightMotors;
-    vex::inertial Inertial = Inertial;
+    vex::inertial Inertial;
     PID drivePID;
     int driveMaxVolt;
     PID turnPID;
     int turnMaxVolt;
     PID swingPID;
     int swingMaxVolt;
-    vex::rotation verticalOdo = verticalOdo;
-    vex::rotation horizontalOdo = horizontalOdo;
+    vex::rotation verticalOdo;
+    vex::rotation horizontalOdo;
 
   public:
     Odom odom;
-    Drive();
+    Drive(int inertialPort, int verticalOdoPort, int horizontalOdoPort);
     // Drive(vex::motor_group leftMotors, vex::motor_group rightMotors, int inertialPort, int verticalOdoPort,
     //       int horizontalOdoPort, int leftBackMotorPort, int leftFrontMotorPort, int rightBackMotorPort,
     //       int rightFrontMotorPort);

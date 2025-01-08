@@ -21,7 +21,9 @@
 //     this->turnPID = PID(0.0, 0.0, 0.0, 1);
 //     this->swingPID = PID(0.0, 0.0, 0.0, 1);
 // }
-Drive::Drive()
+Drive::Drive(int inertialPort, int verticalOdoPort, int horizontalOdoPort)
+    : Inertial(vex::inertial(vex::PORT9, vex::turnType::left)), verticalOdo(vex::rotation(vex::PORT11, false)),
+      horizontalOdo(vex::rotation(vex::PORT12, true))
 {
     this->drivePID = PID(0.0, 0.0, 0.0, 1.5);
     this->turnPID = PID(0.0, 0.0, 0.0, 1);
@@ -38,6 +40,10 @@ void Drive::positionTrack()
 {
     while (true)
     {
+        Controller.Screen.clearScreen();
+        Controller.Screen.setCursor(1, 1);
+        Controller.Screen.print("%f", this->Inertial.rotation(vex::rotationUnits::rev));
+
         odom.update(this->verticalOdo.position(vex::rotationUnits::rev),
                     this->horizontalOdo.position(vex::rotationUnits::rev),
                     formatAngle360(this->Inertial.rotation(vex::rotationUnits::rev) * 360));
@@ -53,10 +59,14 @@ int Drive::positionTrackTask()
 
 void Drive::setInitPos(double xPos, double yPos, double orientation)
 {
-    odom.setInitPos(xPos, yPos, orientation, this->verticalOdo.position(vex::rotationUnits::rev),
-                    this->horizontalOdo.position(vex::rotationUnits::rev));
     this->Inertial.setHeading(orientation, vex::rotationUnits::deg);
     this->Inertial.setRotation(orientation / 360, vex::rotationUnits::rev);
+
+    Controller.Screen.clearScreen();
+    Controller.Screen.setCursor(1, 1);
+
+    odom.setInitPos(xPos, yPos, orientation, verticalOdo.position(vex::rotationUnits::rev),
+                    horizontalOdo.position(vex::rotationUnits::rev));
     vex::task odomTask(positionTrackTask);
 }
 

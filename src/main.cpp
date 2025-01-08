@@ -14,7 +14,7 @@ using namespace vex;
 
 competition Competition;
 
-Drive chassis = Drive();
+Drive chassis = Drive(9, 11, 12);
 // Drive drive = Drive(
 //     // left motors
 //     leftMotors,
@@ -337,6 +337,7 @@ int main()
 
     // Run the pre-autonomous function.
     pre_auton();
+    odomTest();
 
     // Prevent main from exiting with an infinite loop.
     while (true)
