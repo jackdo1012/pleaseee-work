@@ -14,7 +14,8 @@ using namespace vex;
 
 competition Competition;
 
-Drive chassis = Drive(9, 11, 12);
+Drive chassis = Drive(9, 11, 12, vex::motor_group(leftBackMotor, leftFrontMotor),
+                      vex::motor_group(rightBackMotor, rightFrontMotor));
 // Drive drive = Drive(
 //     // left motors
 //     leftMotors,
@@ -60,36 +61,13 @@ void pre_auton(void)
     }
     Brain.Screen.clearScreen();
     armSensor.setPosition(0, vex::rotationUnits::rev);
+    leftMotors.setStopping(vex::brake);
+    rightMotors.setStopping(vex::brake);
+    intakeMotor.setVelocity(100, percent);
+    conveyorMotor.setVelocity(90, percent);
+    leftArmMotor.setVelocity(70, percent);
+    rightArmMotor.setVelocity(70, percent);
 }
-
-/*---------------------------------------------------------------------------*/
-/*                                                                           */
-/*                              Autonomous Task                              */
-/*                                                                           */
-/*  This task is used to control your robot during the autonomous phase of   */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
-/*---------------------------------------------------------------------------*/
-
-void autonomous(void)
-{
-    // ..........................................................................
-    // Insert autonomous user code here.
-    // ..........................................................................
-    odomTest();
-    // test();
-}
-
-/*---------------------------------------------------------------------------*/
-/*                                                                           */
-/*                              User Control Task                            */
-/*                                                                           */
-/*  This task is used to control your robot during the user control phase of */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
-/*---------------------------------------------------------------------------*/
 
 enum MotorStatus
 {
@@ -98,22 +76,14 @@ enum MotorStatus
     stop
 };
 
-enum ArmPos
-{
-    off,
-    idle,
-    neutral_hover,
-    neutral,
-    color_hover,
-    color
-};
-
-double armPoses[] = {
-    0, 0, 0, 0, 0, 0,
-};
+// off, loading, neutral_hover, neutral_score
+double armPoses[] = {0, 43, 258, 290};
 
 MotorStatus intakeStatus = MotorStatus::stop;
-ArmPos armPos = ArmPos::off;
+int armPos = 0;
+double armTarget = 0;
+int numberOfPos = 4;
+double armPrevErr = 0;
 bool clampStatus = false;
 bool powerStatus = false;
 bool powerProcessing = false;
@@ -127,6 +97,10 @@ void printOnController(int row, int col, std::string data)
 
 void runIntake()
 {
+    if (powerStatus)
+    {
+        return;
+    }
     if (intakeStatus == MotorStatus::forward)
     {
         intakeMotor.stop();
@@ -143,6 +117,10 @@ void runIntake()
 
 void reverseIntake()
 {
+    if (powerStatus)
+    {
+        return;
+    }
     if (intakeStatus == MotorStatus::reverse)
     {
         intakeMotor.stop();
@@ -161,7 +139,7 @@ void toggleClamp()
 {
     clampStatus = !clampStatus;
     clampCylinder.set(clampStatus);
-    std::string printData = "Clamp: " + std::string(powerStatus ? "on" : "off");
+    std::string printData = "Clamp: " + std::string(clampStatus ? "on" : "off");
     printOnController(1, 1, printData);
 }
 
@@ -175,119 +153,103 @@ void togglePower()
     powerStatus = !powerStatus;
     powerCylinder.set(powerStatus);
     intakeMotor.setStopping(coast);
-    conveyorMotor.setStopping(coast);
+    ptoMotor.setStopping(coast);
     wait(0.5, sec);
-    while (conveyorMotor.torque() < 0.2 || intakeMotor.torque() < 0.2)
+    while ((ptoMotor.torque() < 0.2 && powerStatus) || intakeMotor.torque() < 0.2)
     {
         wait(5, msec);
-        if (conveyorMotor.torque() >= 0.2)
+        if (ptoMotor.torque() >= 0.2 || !powerStatus)
         {
-            conveyorMotor.stop();
+            ptoMotor.stop();
         }
         if (intakeMotor.torque() >= 0.2)
         {
             intakeMotor.stop();
         }
     }
-    std::string printData = "Power: " + std::string(powerStatus ? "on" : "off");
-    printOnController(2, 1, printData);
     powerProcessing = false;
+    std::string printData2 = "Power: " + std::string(powerStatus ? "on" : "off");
+    printOnController(2, 1, printData2);
 }
 
-void moveArm(double target)
+void armControl()
 {
-    double init = armSensor.position(vex::rotationUnits::rev);
-    leftMotors.setStopping(hold);
-    rightMotors.setStopping(hold);
-    while (fabs(armSensor.position(vex::rotationUnits::rev) - target) > 0.01)
+    double kp = 0.5;
+    double err = armTarget - (armSensor.position(vex::rotationUnits::rev) * 360);
+    double output = kp * err;
+    output = clamp(-100, output, 100);
+    leftArmMotor.spin(vex::forward, output, percent);
+    rightArmMotor.spin(vex::forward, output, percent);
+}
+
+int armMovementTask()
+{
+    armSensor.setPosition(0, vex::rotationUnits::rev);
+    while (true)
     {
-        if (init < target)
-        {
-            leftArmMotor.spin(vex::forward);
-            rightArmMotor.spin(vex::forward);
-        }
-        else
-        {
-            leftArmMotor.spin(vex::reverse);
-            rightArmMotor.spin(vex::reverse);
-        }
+        armControl();
+        vex::task::sleep(20);
     }
-    leftArmMotor.stop();
-    rightArmMotor.stop();
+    return 0;
 }
 
 void armOut()
 {
-    switch (armPos)
+    if (armPos < numberOfPos - 1)
     {
-        case ArmPos::off: {
-            moveArm(armPoses[1]);
-            armPos = ArmPos::idle;
-            break;
-        }
-        case ArmPos::idle: {
-            moveArm(armPoses[2]);
-            armPos = ArmPos::neutral_hover;
-            break;
-        }
-        case ArmPos::neutral_hover: {
-            moveArm(armPoses[3]);
-            armPos = ArmPos::neutral;
-            break;
-        }
-        case ArmPos::neutral: {
-            moveArm(armPoses[4]);
-            armPos = ArmPos::color_hover;
-            break;
-        }
-        case ArmPos::color_hover: {
-            moveArm(armPoses[5]);
-            armPos = ArmPos::color;
-            break;
-        }
-        case ArmPos::color: {
-            break;
-        }
+
+        armPos += 1;
+        armTarget = armPoses[armPos];
     }
 }
 
 void armIn()
 {
-    switch (armPos)
+    if (armPos > 0)
     {
-        case ArmPos::off: {
-            break;
-        }
-        case ArmPos::idle: {
-            moveArm(armPoses[0]);
-            armPos = ArmPos::off;
-            break;
-        }
-        case ArmPos::neutral_hover: {
-            moveArm(armPoses[1]);
-            armPos = ArmPos::idle;
-            break;
-        }
-        case ArmPos::neutral: {
-            moveArm(armPoses[2]);
-            armPos = ArmPos::neutral_hover;
-            break;
-        }
-        case ArmPos::color_hover: {
-            moveArm(armPoses[3]);
-            armPos = ArmPos::neutral;
-            break;
-        }
-        case ArmPos::color: {
-            moveArm(armPoses[4]);
-            armPos = ArmPos::color_hover;
-            break;
-        }
+        armPos--;
+        armTarget = armPoses[armPos];
     }
 }
 
+/*---------------------------------------------------------------------------*/
+/*                                                                           */
+/*                              Autonomous Task                              */
+/*                                                                           */
+/*  This task is used to control your robot during the autonomous phase of   */
+/*  a VEX Competition.                                                       */
+/*                                                                           */
+/*  You must modify the code to add your own robot specific commands here.   */
+/*---------------------------------------------------------------------------*/
+
+void autonomous(void)
+{
+    // ..........................................................................
+    // Insert autonomous user code here.
+    // ..........................................................................
+    chassis.setInitPos(0, 0, 90);
+}
+
+/*---------------------------------------------------------------------------*/
+/*                                                                           */
+/*                              User Control Task                            */
+/*                                                                           */
+/*  This task is used to control your robot during the user control phase of */
+/*  a VEX Competition.                                                       */
+/*                                                                           */
+/*  You must modify the code to add your own robot specific commands here.   */
+/*---------------------------------------------------------------------------*/
+
 void usercontrol()
 {
+    vex::task armTask(armMovementTask);
+    // Controller.ButtonX.pressed(togglePower);
+    Controller.ButtonA.pressed(toggleClamp);
+    Controller.ButtonR1.pressed(armOut);
+    Controller.ButtonR2.pressed(armIn);
+    Controller.ButtonL1.pressed(runIntake);
+    Controller.ButtonL2.pressed(reverseIntake);
+    Controller.Screen.clearScreen();
     // User control code here, inside the loop
     while (1)
     {
@@ -307,23 +269,27 @@ void usercontrol()
         if (powerStatus)
         {
             intakeMotor.spin(vex::forward, leftSpeed, percent);
-            conveyorMotor.spin(vex::forward, rightSpeed, percent);
+            ptoMotor.spin(vex::forward, rightSpeed, percent);
         }
-        else
-        {
-            intakeMotor.setVelocity(100, percent);
-            conveyorMotor.setVelocity(100, percent);
-            Controller.ButtonL1.pressed(runIntake);
-            Controller.ButtonL2.pressed(reverseIntake);
-        }
-
-        Controller.ButtonX.pressed(togglePower);
-        Controller.ButtonR1.pressed(armOut);
-        Controller.ButtonR2.pressed(armIn);
-
         wait(20, msec); // Sleep the task for a short amount of time
                         // to prevent wasted resources.
     }
+}
+
+int odomTest()
+{
+    while (true)
+    {
+        Controller.Screen.clearScreen();
+        Controller.Screen.setCursor(1, 1);
+        Controller.Screen.print("X: %f", chassis.odom.xPos);
+        Controller.Screen.setCursor(2, 1);
+        Controller.Screen.print("Y: %f", chassis.odom.yPos);
+        Controller.Screen.setCursor(3, 1);
+        Controller.Screen.print("Orientation: %f", chassis.odom.orientation);
+        vex::task::sleep(20);
+    }
+    return 0;
 }
 
 //
@@ -337,7 +303,12 @@ int main()
 
     // Run the pre-autonomous function.
     pre_auton();
-    odomTest();
+
+    // chassis.setInitPos(0, 0, 270);
+    // chassis.driveToPoint(0, 19, 270, 3000);
+    // toggleClamp();
+    // runIntake();
+    // chassis.turnToHeading(45, 10000);
 
     // Prevent main from exiting with an infinite loop.
     while (true)

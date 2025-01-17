@@ -13,7 +13,9 @@
 #include "odom.h"
 #include "pid.h"
 #include "drive.h"
-#include "auton.h"
+
+class Drive;
+extern Drive chassis;
 
 #define waitUntil(condition)                                                                                           \
     do                                                                                                                 \

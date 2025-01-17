@@ -1,5 +1,7 @@
 #include <vex.h>
 
+vex::drivetrain Drivetrain = vex::drivetrain(leftMotors, rightMotors);
+
 void Odom::setInitPos(double xPos, double yPos, double orientation, double verticalOdoPos, double horizontalOdoPos)
 {
     this->xPos = xPos;
@@ -25,20 +27,22 @@ void Odom::update(double verticalOdoPos, double horizontalOdoPos, double orienta
     double deltaOrientation = orientationRadian - prevOrientationRadian;
     this->orientation = orientation;
 
-    double relDeltaFwd, relDeltaStr;
+    double verticalWheelMoved = deltaVertical * wheelCircumference;
+    double horizontalWheelMoved = deltaHorizontal * wheelCircumference;
 
+    double relDeltaFwd, relDeltaStr;
     if (deltaOrientation == 0)
     {
-        relDeltaFwd = verticalOdoPos;
-        relDeltaStr = horizontalOdoPos;
+        relDeltaFwd = deltaVertical;
+        relDeltaStr = deltaHorizontal;
     }
     else
     {
-        relDeltaFwd = 2 * (deltaVertical * wheelCircumference / deltaOrientation + verticalTrackingDistance) *
-                      sin(deltaOrientation / 2);
-        relDeltaStr = 2 * (deltaHorizontal * wheelCircumference / deltaOrientation - horizontalTrackingDistance) *
-                      sin(deltaOrientation / 2);
+        relDeltaFwd =
+            2 * (verticalWheelMoved / deltaOrientation + verticalTrackingDistance) * sin(deltaOrientation / 2);
+        relDeltaStr =
+            2 * (horizontalWheelMoved / deltaOrientation - horizontalTrackingDistance) * sin(deltaOrientation / 2);
     }
-    this->yPos += relDeltaFwd * cos(deltaOrientation) - relDeltaStr * sin(deltaOrientation);
-    this->xPos -= relDeltaStr * cos(deltaOrientation) + relDeltaFwd * sin(deltaOrientation);
+    this->xPos += relDeltaFwd * cos(orientationRadian) - relDeltaStr * sin(orientationRadian);
+    this->yPos += relDeltaStr * cos(orientationRadian) + relDeltaFwd * sin(orientationRadian);
 }

@@ -49,20 +49,28 @@ double PID::execute(double err)
         this->settlingTime = 0;
     }
 
+    this->runningTime += 10;
+
     return output;
 }
 
-void PID::start(double err)
+void PID::start(double err, double maxTime)
 {
     this->prevErr = 0;
     this->integral = 0;
     this->settlingTime = 0;
+    this->runningTime = 0;
+    this->maxTime = maxTime;
     this->execute(err);
 }
 
 bool PID::isDone()
 {
-    if (this->settlingTime > this->minSettlingTime)
+    if (this->runningTime > this->maxTime && this->maxTime != 0)
+    {
+        return true;
+    }
+    if (this->settlingTime >= this->minSettlingTime)
     {
         return true;
     }

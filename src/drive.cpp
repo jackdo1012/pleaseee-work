@@ -21,13 +21,17 @@
 //     this->turnPID = PID(0.0, 0.0, 0.0, 1);
 //     this->swingPID = PID(0.0, 0.0, 0.0, 1);
 // }
-Drive::Drive(int inertialPort, int verticalOdoPort, int horizontalOdoPort)
-    : Inertial(vex::inertial(vex::PORT9, vex::turnType::left)), verticalOdo(vex::rotation(vex::PORT11, false)),
-      horizontalOdo(vex::rotation(vex::PORT12, true))
+Drive::Drive(int inertialPort, int verticalOdoPort, int horizontalOdoPort, vex::motor_group leftMotors,
+             vex::motor_group rightMotors)
+    : Inertial(vex::inertial(vex::PORT11, vex::turnType::left)), verticalOdo(vex::rotation(vex::PORT13, false)),
+      horizontalOdo(vex::rotation(vex::PORT12, true)), leftMotors(leftMotors), rightMotors(rightMotors)
 {
-    this->drivePID = PID(0.0, 0.0, 0.0, 1.5);
-    this->turnPID = PID(0.0, 0.0, 0.0, 1);
-    this->swingPID = PID(0.0, 0.0, 0.0, 1);
+    this->drivePID = PID(2.5, 0, 10, 1.5);
+    this->turnPID = PID(0.7, .03, 3, 1);
+    this->swingPID = PID(.3, .001, 2, 1);
+    this->driveMaxVolt = 10;
+    this->turnMaxVolt = 12;
+    this->swingMaxVolt = 12;
 }
 
 void Drive::drive(double leftVolt, double rightVolt)
@@ -40,10 +44,6 @@ void Drive::positionTrack()
 {
     while (true)
     {
-        Controller.Screen.clearScreen();
-        Controller.Screen.setCursor(1, 1);
-        Controller.Screen.print("%f", this->Inertial.rotation(vex::rotationUnits::rev));
-
         odom.update(this->verticalOdo.position(vex::rotationUnits::rev),
                     this->horizontalOdo.position(vex::rotationUnits::rev),
                     formatAngle360(this->Inertial.rotation(vex::rotationUnits::rev) * 360));
@@ -62,22 +62,19 @@ void Drive::setInitPos(double xPos, double yPos, double orientation)
     this->Inertial.setHeading(orientation, vex::rotationUnits::deg);
     this->Inertial.setRotation(orientation / 360, vex::rotationUnits::rev);
 
-    Controller.Screen.clearScreen();
-    Controller.Screen.setCursor(1, 1);
-
     odom.setInitPos(xPos, yPos, orientation, verticalOdo.position(vex::rotationUnits::rev),
                     horizontalOdo.position(vex::rotationUnits::rev));
     vex::task odomTask(positionTrackTask);
 }
 
-void Drive::driveToPoint(double x, double y, double heading)
+void Drive::driveToPoint(double x, double y, double heading, double maxTime)
 {
-    this->drivePID.start(hypot(x - odom.xPos, y - odom.yPos));
-    this->turnPID.start(heading - formatAngle360(odom.orientation));
+    this->drivePID.start(hypot(x - odom.xPos, y - odom.yPos), maxTime);
+    this->turnPID.start(heading - formatAngle360(odom.orientation), maxTime);
     while (!this->drivePID.isDone() || !this->turnPID.isDone())
     {
         double driveErr = hypot(x - odom.xPos, y - odom.yPos);
-        float turnErr =
+        double turnErr =
             formatAngle180(toDegree(atan2(y - odom.yPos, x - odom.xPos)) - formatAngle360(odom.orientation));
         double driveOutput = drivePID.execute(driveErr);
 
@@ -112,16 +109,15 @@ void Drive::driveToPoint(double x, double y, double heading)
                 leftVolt = this->driveMaxVolt / ratio;
             }
         }
-
         this->drive(leftVolt, rightVolt);
 
-        vex::task::sleep(10);
+        vex::task::sleep(5);
     }
 }
 
-void Drive::turnToHeading(double heading)
+void Drive::turnToHeading(double heading, double maxTime)
 {
-    this->turnPID.start(formatAngle180(heading - formatAngle360(odom.orientation)));
+    this->turnPID.start(formatAngle180(heading - formatAngle360(odom.orientation)), maxTime);
     while (!this->turnPID.isDone())
     {
         double turnOutput =
@@ -132,9 +128,9 @@ void Drive::turnToHeading(double heading)
     }
 }
 
-void Drive::leftSwing(double heading)
+void Drive::leftSwing(double heading, double maxTime)
 {
-    this->swingPID.start(formatAngle180(heading - formatAngle360(odom.orientation)));
+    this->swingPID.start(formatAngle180(heading - formatAngle360(odom.orientation)), maxTime);
     while (!this->swingPID.isDone())
     {
         double swingOutput =
@@ -145,9 +141,9 @@ void Drive::leftSwing(double heading)
         vex::task::sleep(10);
     }
 }
-void Drive::rightSwing(double heading)
+void Drive::rightSwing(double heading, double maxTime)
 {
-    this->swingPID.start(formatAngle180(heading - formatAngle360(odom.orientation)));
+    this->swingPID.start(formatAngle180(heading - formatAngle360(odom.orientation)), maxTime);
     while (!this->swingPID.isDone())
     {
         double swingOutput =

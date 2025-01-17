@@ -5,6 +5,7 @@ extern vex::controller Controller;
 // motors and piston
 extern vex::motor intakeMotor;
 extern vex::motor conveyorMotor;
+extern vex::motor ptoMotor;
 extern vex::motor leftArmMotor;
 extern vex::motor rightArmMotor;
 extern vex::digital_out clampCylinder;
