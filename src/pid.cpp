@@ -28,7 +28,10 @@ PID::PID(double kP, double kI, double kD, double tolerance)
 // - The output will be the sum of those 3
 double PID::execute(double err)
 {
-    this->integral += err;
+    if (fabs(err) < this->maxErrorForIntegral || this->maxErrorForIntegral == 0)
+    {
+        this->integral += err;
+    }
 
     // If error cross 0, reset integral so the robot won't oscillate
     if ((err > 0 && prevErr < 0) || (err < 0 && prevErr > 0))
@@ -56,11 +59,31 @@ double PID::execute(double err)
 
 void PID::start(double err, double maxTime)
 {
+    this->start(err, maxTime, 0, 0);
+}
+
+void PID::start(double err, double maxTime, double minSettingTime)
+{
+    this->start(err, maxTime, minSettingTime, 0);
+}
+
+void PID::start(double err, double maxTime, double minSettingTime, double maxErrorForIntegral)
+{
     this->prevErr = 0;
     this->integral = 0;
     this->settlingTime = 0;
     this->runningTime = 0;
     this->maxTime = maxTime;
+
+    if (minSettingTime != 0)
+    {
+        this->minSettlingTime = minSettingTime;
+    }
+    else
+    {
+        this->minSettlingTime = 400;
+    }
+    this->maxErrorForIntegral = maxErrorForIntegral;
     this->execute(err);
 }
 
@@ -75,4 +98,19 @@ bool PID::isDone()
         return true;
     }
     return false;
+}
+
+void PID::changeConst(double kP, double kI, double kD)
+{
+    this->kP = kP;
+    this->kI = kI;
+    this->kD = kD;
+}
+
+void PID::changeConst(double kP, double kI, double kD, double tolerance)
+{
+    this->kP = kP;
+    this->kI = kI;
+    this->kD = kD;
+    this->tolerance = tolerance;
 }

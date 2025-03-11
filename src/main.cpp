@@ -16,25 +16,6 @@ competition Competition;
 
 Drive chassis = Drive(9, 11, 12, vex::motor_group(leftBackMotor, leftFrontMotor),
                       vex::motor_group(rightBackMotor, rightFrontMotor));
-// Drive drive = Drive(
-//     // left motors
-//     leftMotors,
-//     // right motors
-//     rightMotors,
-//     // inertial port
-//     PORT9,
-//     // vertical odo port
-//     PORT11,
-//     // horizontal odo port
-//     PORT12,
-//     // left back motor port
-//     PORT1,
-//     // left front motor port
-//     PORT2,
-//     // right back motor port
-//     PORT3,
-//     // right back motor port
-//     PORT4);
 
 /*---------------------------------------------------------------------------*/
 /*                          Pre-Autonomous Functions */
@@ -57,14 +38,17 @@ void pre_auton(void)
         Brain.Screen.clearScreen();
         Brain.Screen.setCursor(1, 1);
         Brain.Screen.print("Inertial Calibrating");
+        Controller.Screen.clearScreen();
+        Controller.Screen.setCursor(1, 1);
+        Controller.Screen.print("Inertial Calibrating");
         wait(50, msec);
     }
     Brain.Screen.clearScreen();
-    armSensor.setPosition(0, vex::rotationUnits::rev);
+    Controller.Screen.clearScreen();
     leftMotors.setStopping(vex::brake);
     rightMotors.setStopping(vex::brake);
     intakeMotor.setVelocity(100, percent);
-    conveyorMotor.setVelocity(90, percent);
+    conveyorMotor.setVelocity(100, percent);
     leftArmMotor.setVelocity(70, percent);
     rightArmMotor.setVelocity(70, percent);
 }
@@ -76,17 +60,22 @@ enum MotorStatus
     stop
 };
 
-// off, loading, neutral_hover, neutral_score
-double armPoses[] = {0, 43, 258, 290};
+// off, loading, neutral
+// double armPoses[] = {0, 50, 279, 380};
+// double armPoses[] = {0, 52, 150, 279};
+double armPoses[] = {0, 52, 279};
 
-MotorStatus intakeStatus = MotorStatus::stop;
+int numberOfPos = 3;
+MotorStatus intakeSystemStatus = MotorStatus::stop;
 int armPos = 0;
 double armTarget = 0;
-int numberOfPos = 4;
 double armPrevErr = 0;
 bool clampStatus = false;
-bool powerStatus = false;
+bool doinkerStatus = false;
 bool powerProcessing = false;
+bool slowIntake = false;
+int pos = 1; // 1: red left, 2: red right, 3: blue left, 4: blue right
+bool colorSorting = true;
 
 void printOnController(int row, int col, std::string data)
 {
@@ -95,100 +84,73 @@ void printOnController(int row, int col, std::string data)
     Controller.Screen.print(data.c_str());
 }
 
+void toggleIntakeOnly()
+{
+    intakeMotor.spin(vex::forward);
+}
+
 void runIntake()
 {
-    if (powerStatus)
-    {
-        return;
-    }
-    if (intakeStatus == MotorStatus::forward)
+    if (intakeSystemStatus == MotorStatus::forward)
     {
         intakeMotor.stop();
         conveyorMotor.stop();
-        intakeStatus = MotorStatus::stop;
+        intakeSystemStatus = MotorStatus::stop;
     }
     else
     {
         intakeMotor.spin(vex::forward);
         conveyorMotor.spin(vex::forward);
-        intakeStatus = MotorStatus::forward;
+        intakeSystemStatus = MotorStatus::forward;
     }
 }
 
 void reverseIntake()
 {
-    if (powerStatus)
-    {
-        return;
-    }
-    if (intakeStatus == MotorStatus::reverse)
+    if (intakeSystemStatus == MotorStatus::reverse)
     {
         intakeMotor.stop();
         conveyorMotor.stop();
-        intakeStatus = MotorStatus::stop;
+        intakeSystemStatus = MotorStatus::stop;
     }
     else
     {
         intakeMotor.spin(vex::reverse);
         conveyorMotor.spin(vex::reverse);
-        intakeStatus = MotorStatus::reverse;
+        intakeSystemStatus = MotorStatus::reverse;
     }
 }
-
 void toggleClamp()
 {
     clampStatus = !clampStatus;
     clampCylinder.set(clampStatus);
-    std::string printData = "Clamp: " + std::string(clampStatus ? "on" : "off");
-    printOnController(1, 1, printData);
 }
 
-void togglePower()
+void toggleDoinker()
 {
-    if (powerProcessing)
-    {
-        return;
-    }
-    powerProcessing = true;
-    powerStatus = !powerStatus;
-    powerCylinder.set(powerStatus);
-    intakeMotor.setStopping(coast);
-    ptoMotor.setStopping(coast);
-    wait(0.5, sec);
-    while ((ptoMotor.torque() < 0.2 && powerStatus) || intakeMotor.torque() < 0.2)
-    {
-        wait(5, msec);
-        if (ptoMotor.torque() >= 0.2 || !powerStatus)
-        {
-            ptoMotor.stop();
-        }
-        if (intakeMotor.torque() >= 0.2)
-        {
-            intakeMotor.stop();
-        }
-    }
-    powerProcessing = false;
-    std::string printData2 = "Power: " + std::string(powerStatus ? "on" : "off");
-    printOnController(2, 1, printData2);
+    doinkerStatus = !doinkerStatus;
+    doinkerCylinder.set(doinkerStatus);
 }
 
 void armControl()
 {
-    double kp = 0.5;
-    double err = armTarget - (armSensor.position(vex::rotationUnits::rev) * 360);
-    double output = kp * err;
-    output = clamp(-100, output, 100);
+    double kp = .5;
+    double kd = .2;
+    double err = armTarget - (leftArmMotor.position(vex::rotationUnits::rev) * 360);
+    double output = kp * err + kd * (err - armPrevErr);
+    armPrevErr = err;
+    output = clamp(-50, output, 50);
     leftArmMotor.spin(vex::forward, output, percent);
     rightArmMotor.spin(vex::forward, output, percent);
 }
 
 int armMovementTask()
 {
-    armSensor.setPosition(0, vex::rotationUnits::rev);
+    leftArmMotor.setPosition(0, vex::rotationUnits::rev);
     while (true)
     {
         armControl();
-        vex::task::sleep(20);
+        vex::task::sleep(10);
     }
     return 0;
 }
@@ -212,6 +174,101 @@ void armIn()
     }
 }
 
+void slowIntakeControl()
+{
+    conveyorMotor.setVelocity(5, percent);
+}
+
+void fastIntakeControl()
+{
+    conveyorMotor.setVelocity(100, percent);
+}
+
+void sideSelection()
+{
+    Brain.Screen.setFillColor(red);
+    Brain.Screen.drawRectangle(0, 0, 240, 240);
+    Brain.Screen.setCursor(3, 8);
+    Brain.Screen.print("red left");
+
+    Brain.Screen.setFillColor(red);
+    Brain.Screen.drawRectangle(240, 0, 240, 120);
+    Brain.Screen.setCursor(3, 32);
+    Brain.Screen.print("red right");
+
+    Brain.Screen.setFillColor(blue);
+    Brain.Screen.drawRectangle(0, 120, 240, 120);
+    Brain.Screen.setCursor(10, 8);
+    Brain.Screen.print("blue left");
+
+    Brain.Screen.setFillColor(blue);
+    Brain.Screen.drawRectangle(240, 120, 240, 120);
+    Brain.Screen.setCursor(10, 32);
+    Brain.Screen.print("blue right");
+
+    while (!Brain.Screen.pressing())
+    {
+        wait(5, msec);
+    }
+
+    if (Brain.Screen.xPosition() < 240)
+    {
+        if (Brain.Screen.yPosition() < 120)
+        {
+            pos = 1;
+            Brain.Screen.setFillColor(red);
+            Brain.Screen.drawRectangle(0, 0, 480, 240);
+            armTarget = armPoses[1];
+        }
+        else
+        {
+            pos = 3;
+            Brain.Screen.setFillColor(blue);
+            Brain.Screen.drawRectangle(0, 0, 480, 240);
+        }
+    }
+    else
+    {
+        if (Brain.Screen.yPosition() < 120)
+        {
+            pos = 2;
+            Brain.Screen.setFillColor(red);
+            Brain.Screen.drawRectangle(0, 0, 480, 240);
+        }
+        else
+        {
+            pos = 4;
+            Brain.Screen.setFillColor(blue);
+            Brain.Screen.drawRectangle(0, 0, 480, 240);
+            armTarget = armPoses[1];
+        }
+    }
+}
+void colorSortingFunc()
+{
+    if (colorSensor.color() < 1000000 && pos - 2 > 0)
+    {
+        return;
+    }
+    else if (colorSensor.color() > 1000000 && pos - 2 <= 0)
+    {
+        return;
+    }
+    if (colorSorting)
+    {
+        wait(50, msec);
+        conveyorMotor.stop(vex::brake);
+        wait(1, seconds);
+        conveyorMotor.spin(vex::forward);
+        intakeMotor.spin(vex::forward);
+        intakeSystemStatus = MotorStatus::forward;
+    }
+}
+
+void toggleColorSorting()
+{
+    colorSorting = !colorSorting;
+}
 /*---------------------------------------------------------------------------*/
 /*                                                                           */
 /*                              Autonomous Task                              */
@@ -227,7 +284,76 @@ void autonomous(void)
     // ..........................................................................
     // Insert autonomous user code here.
     // ..........................................................................
-    chassis.setInitPos(0, 0, 90);
+    // 1 : red ring, 2 : red stake, 3 : blue stake, 4 : blue ring
+    if (pos == 1)
+    {
+
+        chassis.setInitPos(0, 0, 270);
+        chassis.changeDrivePid(1, 0, 10);
+        chassis.changeTurnPid(0.8, 0, 8);
+        chassis.driveToPoint(0, 19, 2000);
+        clampCylinder.set(true);
+        wait(500, msec);
+        runIntake();
+
+        chassis.turnToHeading(124, 2000);
+        chassis.driveToPoint(-15, 40, 3000, 100);
+    }
+    else if (pos == 2)
+    {
+        chassis.setInitPos(0, 0, 270);
+        chassis.changeDrivePid(1, 0, 10);
+        chassis.changeTurnPid(0.8, 0, 8);
+        chassis.driveToPoint(0, 19, 2000);
+        clampCylinder.set(true);
+        wait(500, msec);
+        runIntake();
+        chassis.turnToHeading(20, 2000);
+        chassis.driveToPoint(22 * cos(toRadian(20)), 19 + 22 * sin(toRadian(20)), 2000);
+        wait(1000, msec);
+        runIntake();
+        chassis.stop();
+
+        chassis.turnToHeading(90, 2000);
+        chassis.driveToPoint(22 * cos(toRadian(20)), 19 + 22 * sin(toRadian(20)) - 10, 2000);
+        clampCylinder.set(false);
+        chassis.driveToPoint(22 * cos(toRadian(20)), 19 + 22 * sin(toRadian(20)), 2000);
+        chassis.turnToHeading(270, 2000);
+    }
+    else if (pos == 3)
+    {
+        chassis.setInitPos(0, 0, 270);
+        chassis.changeDrivePid(1, 0, 10);
+        chassis.changeTurnPid(0.8, 0, 8);
+        chassis.driveToPoint(0, 19, 2000);
+        clampCylinder.set(true);
+        wait(500, msec);
+        runIntake();
+        chassis.turnToHeading(160, 2000);
+        chassis.driveToPoint(22 * cos(toRadian(160)), 19 + 22 * sin(toRadian(160)), 2000);
+        wait(1000, msec);
+        runIntake();
+        chassis.stop();
+
+        chassis.turnToHeading(90, 2000);
+        chassis.driveToPoint(22 * cos(toRadian(160)), 19 + 22 * sin(toRadian(160)) - 10, 2000);
+        clampCylinder.set(false);
+        chassis.driveToPoint(22 * cos(toRadian(160)), 19 + 22 * sin(toRadian(160)), 2000);
+        chassis.turnToHeading(270, 2000);
+    }
+    else if (pos == 4)
+    {
+        chassis.setInitPos(0, 0, 270);
+        chassis.changeDrivePid(1, 0, 10);
+        chassis.changeTurnPid(0.8, 0, 8);
+        chassis.driveToPoint(0, 19, 2000);
+        clampCylinder.set(true);
+        wait(500, msec);
+        runIntake();
+
+        chassis.turnToHeading(56, 2000);
+        chassis.driveToPoint(15, 40, 3000, 100);
+    }
 }
 
 /*---------------------------------------------------------------------------*/
@@ -242,19 +368,28 @@ void autonomous(void)
 
 void usercontrol()
 {
-    vex::task armTask(armMovementTask);
-    // Controller.ButtonX.pressed(togglePower);
     Controller.ButtonA.pressed(toggleClamp);
+    Controller.ButtonDown.pressed(toggleDoinker);
     Controller.ButtonR1.pressed(armOut);
     Controller.ButtonR2.pressed(armIn);
     Controller.ButtonL1.pressed(runIntake);
     Controller.ButtonL2.pressed(reverseIntake);
+    Controller.ButtonB.pressed(slowIntakeControl);
+    Controller.ButtonB.released(fastIntakeControl);
+    Controller.ButtonX.pressed(toggleIntakeOnly);
+
     Controller.Screen.clearScreen();
     // User control code here, inside the loop
     while (1)
     {
-        double leftSpeed = Controller.Axis3.position() + Controller.Axis1.position();
-        double rightSpeed = Controller.Axis3.position() - Controller.Axis1.position();
+        double forward = Controller.Axis3.position();
+        double lateral = Controller.Axis1.position();
+        if (fabs(lateral) > 5)
+        {
+            lateral *= .8;
+        }
+        double leftSpeed = forward + lateral;
+        double rightSpeed = forward - lateral;
 
         if (fabs(leftSpeed) < 5)
         {
@@ -266,11 +401,6 @@ void usercontrol()
         }
         leftMotors.spin(vex::forward, leftSpeed, percent);
         rightMotors.spin(vex::forward, rightSpeed, percent);
-        if (powerStatus)
-        {
-            intakeMotor.spin(vex::forward, leftSpeed, percent);
-            ptoMotor.spin(vex::forward, rightSpeed, percent);
-        }
         wait(20, msec); // Sleep the task for a short amount of time
                         // to prevent wasted resources.
     }
@@ -292,6 +422,40 @@ int odomTest()
     return 0;
 }
 
+int redirect()
+{
+    while (true)
+    {
+        if (conveyorMotor.torque() >= 0.35 && intakeSystemStatus == MotorStatus::forward)
+        {
+            wait(1000, msec);
+            if (conveyorMotor.torque() >= 0.35)
+            {
+                conveyorMotor.spin(vex::reverse);
+                wait(300, msec);
+                conveyorMotor.spin(vex::forward);
+            }
+        }
+        wait(50, msec);
+    }
+    return 0;
+}
+
+void colorSortFunc()
+{
+    if (colorSensor.hue() < 80) // red
+    {
+    }
+    else if (colorSensor.hue() > 80) // blue
+    {
+        return;
+    }
+    wait(50, msec);
+    conveyorMotor.stop();
+    wait(500, msec);
+    conveyorMotor.spin(vex::forward);
+}
+
 //
 // Main will set up the competition functions and callbacks.
 //
@@ -304,11 +468,12 @@ int main()
     // Run the pre-autonomous function.
     pre_auton();
 
-    // chassis.setInitPos(0, 0, 270);
-    // chassis.driveToPoint(0, 19, 270, 3000);
-    // toggleClamp();
-    // runIntake();
-    // chassis.turnToHeading(45, 10000);
+    vex::task armTask(armMovementTask);
+    // vex::task redirectTask(redirect);
+
+    // colorSensor.setLightPower(100, percent);
+    // colorSensor.objectDetected(colorSortFunc);
+    sideSelection();
 
     // Prevent main from exiting with an infinite loop.
     while (true)

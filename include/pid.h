@@ -15,11 +15,18 @@ class PID
     double runningTime = 0;
     double maxTime = 0;
     double settlingTime = 0;
-    double minSettlingTime = 50;
+    double minSettlingTime;
     double tolerance = 1;
+    double maxErrorForIntegral;
+
     PID();
     PID(double kP, double kI, double kD, double tolerance);
     double execute(double err);
     void start(double err, double maxTime);
+    void start(double err, double maxTime, double minSettingTime);
+    void start(double err, double maxTime, double minSettingTime, double maxErrorForIntegral);
+
+    void changeConst(double kP, double kI, double kD);
+    void changeConst(double kP, double kI, double kD, double tolerance);
     bool isDone();
 };
